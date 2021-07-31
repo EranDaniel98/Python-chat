@@ -1,5 +1,5 @@
+import socket, tqdm, os
 from client_strings import *
-import socket
 from threading import Thread
 
 is_running = True
@@ -8,7 +8,7 @@ class Client:
 
     def __init__(self, server_ip='localhost', server_port=65432):
         self.SERVER_INFO = (server_ip,server_port)
-        self.BUFFER = 1024
+        self.BUFFER = 4096
 
         print(INITIATE_MESSAGE)
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -60,17 +60,47 @@ class Client:
         while is_running:
             try:
                 message = input(MESSAGE_PREFIX)
-                if message.lower() != EXIT_MESSAGE:
-                    complete_msg = (self.NAME + ': ' + message).encode()
+                if message.lower() not in self.commands.keys: # Normal msg
+                    complete_msg = (self.NAME +': '+message).encode()
                     self.client_socket.sendall(complete_msg)
-                else:
+                
+                if message.lower() == SHOW_COMMANDS_MESSAGE:
+                    for key in self.commands.keys():
+                        print(f'[{key}], PARAMETERS: {self.commands[key][0]}, INFO: {self.commands[key][1]}')
+
+                if message.lower() == SEND_FILE_MESSAGE: # Send File to all
+                    self.send_file(message)
+                    continue
+
+                if message.lower() == SEND_TO_MESSAGE:
+                    continue
+
+                if message.lower() == EXIT_MESSAGE: # Disconnect from the server
+                    print('disconnecting from the server...')
                     self.client_socket.sendall(EXIT_MESSAGE.encode())
                     self.client_socket.close()
                     is_running = False
+                
 
             except Exception as e:
                 break
     
+    #C:\Users\Eran Daniel\Desktop\Text.txt
+    def send_file(self,filename):
+        fileSize = 0
+
+        fileSize = os.path.getsize(filename)
+        self.client_socket.sendall(f'{filename} {fileSize}'.encode())
+
+        progress = tqdm.tqdm(range(fileSize),f'Sending {filename}', unit='B', unit_scale=True,unit_divisor=1024)
+        with open(filename,"rb") as f:
+            while True:
+                bytes_read = f.read(self.BUFFER)
+                if not bytes_read:
+                    break
+                self.client_socket.sendall(bytes_read)
+                progress.update(len(bytes_read))
+
 
 def main():
     client = Client()
